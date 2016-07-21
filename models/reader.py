@@ -1,11 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
- 
-import argparse
-import codecs
+
 import logging
-import numpy as np
-import scipy as sp
 import pandas as pd
 
 verbose = False
@@ -107,7 +103,8 @@ class ReaderPopulation(Reader):
         self.data['city'] = self.data['city'].apply(lambda s: s.lower())
         self.data['dataItemID'] = self.data['city'] + ':' + self.data['year']
         self.data['sourceID'] = self.data['sourceID'].apply(lambda s: s.lower())
-        self.data['claimID'] = self.data.index
+        self.data['claimID'] = self.data['dataItemID'] + '-' \
+                               + self.data['value'].astype(str)
 
     def filter_data(self):
         u"""Filtering outliers

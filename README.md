@@ -7,7 +7,7 @@ __python-truthdiscovery__ contains python implementations of Truth Discovery alg
 
 - Python
 - pandas
-
+- scikit-learn
 
 # Input format
 
