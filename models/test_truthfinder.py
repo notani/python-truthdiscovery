@@ -5,7 +5,8 @@ import numpy as np
 import unittest
 from truthfinder import TruthFinder
 
-class TestCalc(unittest.TestCase):
+
+class TestTF(unittest.TestCase):
     def setUp(self):
         self.model = TruthFinder(dataset=None, has_header=False,
                                  evaluation=False, verbose=True)
@@ -113,6 +114,134 @@ class TestCalc(unittest.TestCase):
         self.model.initialize_B()
         for i, j in zip(*np.nonzero(ans1_B)):
             self.assertEqual(ans1_B[i, j], self.model.B[i, j])
+
+class TestTF_wo_Mat(unittest.TestCase):
+    def setUp(self):
+        self.model = TruthFinder(dataset=None, has_header=False,
+                                 use_matrix=False,
+                                 evaluation=False, verbose=True)
+
+        self.model.n_sources = 5
+        self.model.n_items = 3
+        self.model.n_claims = 10
+
+        # Test Cases
+        test1_data = {'dataItemID', }
+        test1_items = [0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
+        test1_values = [10, 9, 3, 4, 5, 10, 3, 1, 100, -3]
+        test1_V = []
+        test1_V.append([1, 0, 0, 0, 0, 1, 0, 1, 0, 0])  # source#0
+        test1_V.append([1, 0, 0, 0, 0, 0, 1, 0, 0, 0])  # source#1
+        test1_V.append([1, 0, 0, 0, 0, 1, 0, 1, 0, 0])  # source#2
+        test1_V.append([0, 1, 0, 0, 0, 1, 0, 0, 1, 0])  # source#3
+        test1_V.append([0, 1, 0, 0, 1, 0, 0, 0, 0, 1])  # source#4
+
+        # Set
+        self.model.table_c_to_i = np.array(test1_items, dtype=int)
+        self.model.table_c_to_v = np.array(test1_values, dtype=np.float64)
+        self.model.V = np.array(test1_V, dtype=np.float64)
+
+    def test_normalization(self):
+        ans1_means = [np.mean([10, 10, 10, 9, 9]),
+                      np.mean([10, 10, 10, 5]),
+                      np.mean([1, 3, 1, 100, -3])]
+        ans1_stds = [np.std([10, 10, 10, 9, 9]),
+                     np.std([10, 10, 10, 5]),
+                     np.std([1, 3, 1, 100, -3])]
+        self.model.normalize_values()
+        for i in range(self.model.n_items):
+            self.assertEqual(ans1_means[i], self.model.means[i])
+
+        for i in range(self.model.n_items):
+            self.assertEqual(ans1_stds[i], self.model.stds[i])
+
+    def test_update_claim(self):
+        self.model.initialize()
+
+        tau = - np.log(1 - 0.9)
+        ans1_sigma = np.array([tau * 3, tau * 2, 0, 0, tau,
+                               tau * 3, tau, tau * 2, tau, tau])
+        v = self.model.table_c_to_v
+        ans1_imp_mat = {}
+        ans1_imp_mat[(0, 1)] = np.exp(-abs(v[0] - v[1]))
+        ans1_imp_mat[(2, 3)] = np.exp(-abs(v[2] - v[3]))
+        ans1_imp_mat[(2, 4)] = np.exp(-abs(v[2] - v[4]))
+        ans1_imp_mat[(2, 5)] = np.exp(-abs(v[2] - v[5]))
+        ans1_imp_mat[(3, 4)] = np.exp(-abs(v[3] - v[4]))
+        ans1_imp_mat[(3, 5)] = np.exp(-abs(v[3] - v[5]))
+        ans1_imp_mat[(4, 5)] = np.exp(-abs(v[4] - v[5]))
+        ans1_imp_mat[(6, 7)] = np.exp(-abs(v[6] - v[7]))
+        ans1_imp_mat[(6, 8)] = np.exp(-abs(v[6] - v[8]))
+        ans1_imp_mat[(6, 9)] = np.exp(-abs(v[6] - v[9]))
+        ans1_imp_mat[(7, 8)] = np.exp(-abs(v[7] - v[8]))
+        ans1_imp_mat[(7, 9)] = np.exp(-abs(v[7] - v[9]))
+        ans1_imp_mat[(8, 9)] = np.exp(-abs(v[8] - v[9]))
+
+        ans1_conf = np.zeros(self.model.n_claims)
+        # ans1_conf[0] += ans1_imp_mat[(0, 1)] * ans1_sigma[1] * 2
+        # ans1_conf[1] += ans1_imp_mat[(0, 1)] * ans1_sigma[0] * 3
+        # ans1_conf[2] += ans1_imp_mat[(2, 3)] * ans1_sigma[3] * 0 \
+        #                 + ans1_imp_mat[(2, 4)] * ans1_sigma[4] * 1 \
+        #                 + ans1_imp_mat[(2, 5)] * ans1_sigma[5] * 3
+        # ans1_conf[3] += ans1_imp_mat[(2, 3)] * ans1_sigma[2] * 0 \
+        #                 + ans1_imp_mat[(3, 4)] * ans1_sigma[4] * 1 \
+        #                 + ans1_imp_mat[(3, 5)] * ans1_sigma[5] * 3
+        # ans1_conf[4] += ans1_imp_mat[(2, 4)] * ans1_sigma[2] * 0 \
+        #                 + ans1_imp_mat[(3, 4)] * ans1_sigma[3] * 0 \
+        #                 + ans1_imp_mat[(4, 5)] * ans1_sigma[5] * 3
+        # ans1_conf[5] += ans1_imp_mat[(2, 5)] * ans1_sigma[2] * 0 \
+        #                 + ans1_imp_mat[(3, 5)] * ans1_sigma[3] * 0 \
+        #                 + ans1_imp_mat[(4, 5)] * ans1_sigma[4] * 1
+        # ans1_conf[6] += ans1_imp_mat[(6, 7)] * ans1_sigma[7] * 2 \
+        #                 + ans1_imp_mat[(6, 8)] * ans1_sigma[8] * 1 \
+        #                 + ans1_imp_mat[(6, 9)] * ans1_sigma[9] * 1
+        # ans1_conf[7] += ans1_imp_mat[(6, 7)] * ans1_sigma[6] * 1 \
+        #                 + ans1_imp_mat[(7, 8)] * ans1_sigma[8] * 1 \
+        #                 + ans1_imp_mat[(7, 9)] * ans1_sigma[9] * 1
+        # ans1_conf[8] += ans1_imp_mat[(6, 8)] * ans1_sigma[6] * 1 \
+        #                 + ans1_imp_mat[(7, 8)] * ans1_sigma[7] * 2 \
+        #                 + ans1_imp_mat[(8, 9)] * ans1_sigma[9] * 1
+        # ans1_conf[9] += ans1_imp_mat[(6, 9)] * ans1_sigma[6] * 1 \
+        #                 + ans1_imp_mat[(7, 9)] * ans1_sigma[7] * 2 \
+        #                 + ans1_imp_mat[(8, 9)] * ans1_sigma[8] * 1
+        ans1_conf[0] += ans1_imp_mat[(0, 1)] * ans1_sigma[1] * 1
+        ans1_conf[1] += ans1_imp_mat[(0, 1)] * ans1_sigma[0] * 1
+        ans1_conf[2] += ans1_imp_mat[(2, 3)] * ans1_sigma[3] * 0 \
+                        + ans1_imp_mat[(2, 4)] * ans1_sigma[4] * 1 \
+                        + ans1_imp_mat[(2, 5)] * ans1_sigma[5] * 1
+        ans1_conf[3] += ans1_imp_mat[(2, 3)] * ans1_sigma[2] * 0 \
+                        + ans1_imp_mat[(3, 4)] * ans1_sigma[4] * 1 \
+                        + ans1_imp_mat[(3, 5)] * ans1_sigma[5] * 1
+        ans1_conf[4] += ans1_imp_mat[(2, 4)] * ans1_sigma[2] * 0 \
+                        + ans1_imp_mat[(3, 4)] * ans1_sigma[3] * 0 \
+                        + ans1_imp_mat[(4, 5)] * ans1_sigma[5] * 1
+        ans1_conf[5] += ans1_imp_mat[(2, 5)] * ans1_sigma[2] * 0 \
+                        + ans1_imp_mat[(3, 5)] * ans1_sigma[3] * 0 \
+                        + ans1_imp_mat[(4, 5)] * ans1_sigma[4] * 1
+        ans1_conf[6] += ans1_imp_mat[(6, 7)] * ans1_sigma[7] * 1 \
+                        + ans1_imp_mat[(6, 8)] * ans1_sigma[8] * 1 \
+                        + ans1_imp_mat[(6, 9)] * ans1_sigma[9] * 1
+        ans1_conf[7] += ans1_imp_mat[(6, 7)] * ans1_sigma[6] * 1 \
+                        + ans1_imp_mat[(7, 8)] * ans1_sigma[8] * 1 \
+                        + ans1_imp_mat[(7, 9)] * ans1_sigma[9] * 1
+        ans1_conf[8] += ans1_imp_mat[(6, 8)] * ans1_sigma[6] * 1 \
+                        + ans1_imp_mat[(7, 8)] * ans1_sigma[7] * 1 \
+                        + ans1_imp_mat[(8, 9)] * ans1_sigma[9] * 1
+        ans1_conf[9] += ans1_imp_mat[(6, 9)] * ans1_sigma[6] * 1 \
+                        + ans1_imp_mat[(7, 9)] * ans1_sigma[7] * 1 \
+                        + ans1_imp_mat[(8, 9)] * ans1_sigma[8] * 1
+        ans1_conf += ans1_sigma  # ?
+        ans1_conf *= self.model.rho
+        ans1_conf += (1 - self.model.rho) * ans1_sigma
+        ans1_conf = 1 / (1 + np.exp(-self.model.gamma * ans1_conf))
+
+        self.model.update_claim_wo_matrix()
+
+        for i in range(self.model.n_claims):
+            self.assertEqual(ans1_sigma[i], self.model.sigma[i])
+        for i in range(self.model.n_claims):
+            self.assertEqual(ans1_conf[i], self.model.conf[i])
+
 
 if __name__ == '__main__':
     unittest.main()

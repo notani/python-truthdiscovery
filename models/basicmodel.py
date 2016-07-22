@@ -81,10 +81,11 @@ class BasicModel:
         df['j'] = self.reader.data['claimID'].apply(lambda v: self.alias_claim[v])
         df['k'] = self.reader.data['dataItemID'].apply(lambda v: self.alias_item[v])
         df['val'] = self.reader.data['value']
+        df['vote'] = 1
 
         self.get_mapping_tables(df)
 
-        sparse_s = df.set_index(['i', 'j'])['val'].to_sparse()
+        sparse_s = df.set_index(['i', 'j'])['vote'].to_sparse()
         S, rows, cols = sparse_s.to_coo(row_levels=['i'], column_levels=['j'],
                                         sort_labels=True)
         self.V = S.todense().getA().astype(np.float64)
@@ -142,11 +143,15 @@ class BasicModel:
         shared_idx = shared_idx.intersection(self.result.index)
         shared_idx = sorted(list(shared_idx))
 
+        of = open('hoge.txt', 'w')
+        for val in sorted(self.result.ix[shared_idx]['value'].values.astype(int)):
+            of.write('{}\n'.format(val))
+        of.close()
         if self.verbose:
             self.logger.info('Test samples: {}'.format(len(shared_idx)))
         if how == 'mae':
-            val = evaluation.mae(self.reader.gt.ix[shared_idx].value,
-                                 self.result.ix[shared_idx].value)
+            val = evaluation.mae(self.reader.gt.ix[shared_idx]['value'].values,
+                                 self.result.ix[shared_idx]['value'].values)
         print(val)
         self.result.reset_index(inplace=True)
         self.reader.gt.reset_index(inplace=True)

@@ -19,9 +19,10 @@ python models/truthfinder.py population -e -v
 
 class TruthFinder(BasicModel):
     def __init__(self, dataset='population', has_header=False,
-                 tol=0.1, max_iter=10,
+                 tol=0.1, max_iter=10, use_matrix=True,
                  evaluation=False,
                  verbose=False):
+        self.use_matrix = use_matrix
         BasicModel.__init__(self, dataset=dataset, has_header=has_header,
                             tol=0.1, max_iter=10,
                             evaluation=evaluation,
@@ -31,13 +32,16 @@ class TruthFinder(BasicModel):
         if self.verbose:
             self.logger.info('Initialize')
 
+        self.conf = np.empty(self.n_claims)
+        self.sigma = -np.log(self.n_claims)
         self.trust = np.ones(self.n_sources) * 0.9
         self.tau = -np.log(1.0 - self.trust)
-        self.rho = 0.3  # controls the influence of related facts
+        self.rho = 0.5  # controls the influence of related facts
         self.gamma = 0.3  # dampening factor
         self.normalize_values()
-        self.initialize_A()
-        self.initialize_B()
+        if self.use_matrix:
+            self.initialize_A()
+            self.initialize_B()
 
     def initialize_A(self):
         if self.verbose:
@@ -91,8 +95,12 @@ class TruthFinder(BasicModel):
             iter_count += 1
             # trust_prev = np.copy(self.trust)
             tau_prev = np.copy(self.tau)
-            self.update_claim()
-            self.update_source()
+            if self.use_matrix:
+                self.update_claim()
+                self.update_source()
+            else:
+                self.update_claim_wo_matrix()
+                self.update_source_wo_matrix()
             # diff = np.dot(trust_prev, self.trust)
             # diff /= np.linalg.norm(trust_prev)
             # diff /= np.linalg.norm(self.trust)
@@ -113,15 +121,40 @@ class TruthFinder(BasicModel):
             self.evaluate('mae')
 
     def update_claim(self):
-        print(self.tau)
         sigma_star = self.B.dot(self.tau)
-        # self.sigma = np.dot(self.V.T, self.tau)
-        # sigma_star = (1 - self.rho * (1 - base_thr)) * self.sigma
-        # # + interaction
         self.conf = 1 / (1 + np.exp(-self.gamma * sigma_star))
+
+    def update_claim_wo_matrix(self, base_thr=0):
+        self.sigma = np.empty(self.n_claims)
+        for item in range(self.n_items):
+            claims = np.where(self.table_c_to_i == item)[0]
+            claim_values = self.table_c_to_v[claims]
+            # votes = np.nonzero(self.V[:, claims])[1]
+            claim_values = claim_values[:]# [votes]  # Duplicate
+            for claim in claims:
+                idx = np.nonzero(self.V.T[claim])
+                self.sigma[claim] = self.tau[idx].sum()
+            for claim in claims:
+                claim_value = self.table_c_to_v[claim]
+                diff = abs(claim_values - claim_value)
+                imp = np.exp(-diff) - base_thr
+                # imp[diff == 0] = 0
+                imp *= self.sigma[claims]# [votes]
+                sigma_star = (1 - self.rho * (1-base_thr)) * self.sigma[claim]
+                sigma_star += self.rho * imp.sum()
+                self.conf[claim] = 1 / (1 + np.exp(-self.gamma * sigma_star))
 
     def update_source(self):
         self.trust = self.A.dot(self.conf)
+        self.tau = -np.log(1 - self.trust)
+        self.tau[self.trust >= 1] = np.log(1e10)
+
+    def update_source_wo_matrix(self):
+        self.trust = np.empty(self.n_sources)
+        for source in range(self.n_sources):
+            claims = np.nonzero(self.V[source])[0]
+            denom = len(claims)
+            self.trust[source] = self.conf[claims].sum() / denom
         self.tau = -np.log(1 - self.trust)
         self.tau[self.trust >= 1] = np.log(1e10)
 
@@ -142,6 +175,7 @@ class TruthFinder(BasicModel):
 def main(args):
     model = TruthFinder(has_header=args.flag_has_header,
                         evaluation=args.flag_evaluation,
+                        use_matrix=False,
                         verbose=args.verbose)
 
     model.run()
