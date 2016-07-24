@@ -119,6 +119,7 @@ class TruthFinder(BasicModel):
 
         if self.evaluation:
             self.evaluate('mae')
+            self.evaluate('accuracy')
 
     def update_claim(self):
         sigma_star = self.B.dot(self.tau)

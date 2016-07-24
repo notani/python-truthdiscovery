@@ -149,9 +149,12 @@ class BasicModel:
         of.close()
         if self.verbose:
             self.logger.info('Test samples: {}'.format(len(shared_idx)))
+        gt = self.reader.gt.ix[shared_idx]['value'].values
+        pred = self.result.ix[shared_idx]['value'].values
         if how == 'mae':
-            val = evaluation.mae(self.reader.gt.ix[shared_idx]['value'].values,
-                                 self.result.ix[shared_idx]['value'].values)
+            val = evaluation.mae(gt, pred)
+        if how == 'accuracy':
+            val = evaluation.accuracy(gt, pred)
         print(val)
         self.result.reset_index(inplace=True)
         self.reader.gt.reset_index(inplace=True)
